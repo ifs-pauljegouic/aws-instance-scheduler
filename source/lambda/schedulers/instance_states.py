@@ -108,7 +108,7 @@ class InstanceStates:
         if InstanceStates.INSTANCE_TABLE_PURGE in item:
             self._instances_to_purge = item[InstanceStates.INSTANCE_TABLE_PURGE]
 
-    def set_instance_state(self, instance_id, new_state):
+    def set_instance_state(self, instance_id, new_state, desired_capacity='', min_size=''):
         """
         Sets the state of an instance
         :param instance_id: id of the instance
@@ -116,19 +116,64 @@ class InstanceStates:
         :return:
         """
         # get stored state
-        state = self._state_info.get(instance_id, None)
+        state_info = None
+        state = None
+        if self._service == InstanceSchedule.ASG_SERVICE_NAME:
+            state_info = self._state_info.get(instance_id, None)
+            if state_info is not None:
+                state = state_info['state']
+            else:
+                state_info = {}
+                state_info['state']= ''
+                state_info['desired_capacity']=''
+                state_info['min_size']=''
+        else:
+            state = self._state_info.get(instance_id, None)
         # only update if changed
         if not state or state != new_state:
-            self._state_info[instance_id] = new_state
-            self._dirty = True
+            if self._service == InstanceSchedule.ASG_SERVICE_NAME:
+                state_info = self._state_info.get(instance_id, None)
+                if state_info is None:
+                    state_info = {}
+                    if desired_capacity and min_size:
+                        state_info['state'] = new_state
+                        state_info['desired_capacity'] = desired_capacity
+                        state_info['min_size'] = min_size
+                        self._state_info[instance_id] = state_info
+                        self._dirty = True
+                    else:
+                        state_info['state'] = new_state
+                        self._state_info[instance_id] = state_info
+                        self._dirty = True
+                else:
+                    if desired_capacity and min_size:
+                        state_info['state'] = new_state
+                        state_info['desired_capacity'] = desired_capacity
+                        state_info['min_size'] = min_size
+                        self._state_info[instance_id] = state_info
+                        self._dirty = True
+                    else:
+                        state_info['state'] = new_state
+                        self._state_info[instance_id] = state_info
+                        self._dirty = True
+            else:
+                self._state_info[instance_id] = new_state
+                self._dirty = True
 
     def get_instance_state(self, instance_id):
         """
         gets the stored state of an instance
         :param instance_id: id of the instance
-        :return:
+        :return state: state of the instance
         """
-        state = self._state_info.get(instance_id, None)
+        if self._service == InstanceSchedule.ASG_SERVICE_NAME:
+            state_info = self._state_info.get(instance_id, None)
+            if state_info is not None:
+                state = state_info['state']
+            else:
+                state = None
+        else:
+            state = self._state_info.get(instance_id, None)
         return state if state else InstanceSchedule.STATE_UNKNOWN
 
     def delete_instance_state(self, instance_id):

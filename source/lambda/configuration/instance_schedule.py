@@ -38,6 +38,7 @@ class InstanceSchedule:
     STATE_STOPPED_FOR_RESIZE = "stopped_for_resize"
     STATE_RUNNING = "running"
     STATE_RETAIN_RUNNING = "retain-running"
+    ASG_SERVICE_NAME = "autoscaling"
 
     def __init__(self, name,
                  periods=None,

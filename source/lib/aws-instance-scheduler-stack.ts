@@ -64,7 +64,7 @@ export class AwsInstanceSchedulerStack extends cdk.Stack {
     const scheduledServices = new cdk.CfnParameter(this, 'ScheduledServices', {
       description: 'Scheduled Services.',
       type: "String",
-      allowedValues: ["EC2", "RDS", "Both"],
+      allowedValues: ["EC2", "RDS", "ASG","All"],
       default: "EC2"
     });
 
@@ -616,7 +616,8 @@ export class AwsInstanceSchedulerStack extends cdk.Stack {
     mappings.setValue("EnabledDisabled", "No", "DISABLED")
     mappings.setValue("Services", "EC2", "ec2")
     mappings.setValue("Services", "RDS", "rds")
-    mappings.setValue("Services", "Both", "ec2,rds")
+    mappings.setValue("Services", "ASG", "asg")
+    mappings.setValue("Services", "All", "ec2,rds,asg")
     mappings.setValue("Timeouts", "1", "cron(0/1 * * * ? *)")
     mappings.setValue("Timeouts", "2", "cron(0/2 * * * ? *)")
     mappings.setValue("Timeouts", "5", "cron(0/5 * * * ? *)")
@@ -1068,11 +1069,61 @@ export class AwsInstanceSchedulerStack extends cdk.Stack {
       resources: [cdk.Fn.sub("arn:${AWS::Partition}:rds:*:${AWS::AccountId}:cluster:*")]
     })
 
+    const schedulerPolicyStatement8 = new PolicyStatement({
+      actions: [
+        'autoscaling:UpdateAutoScalingGroup',
+        'autoscaling:DescribeAutoScalingInstances',
+        'autoscaling:DescribeAutoScalingGroups',
+        'autoscaling:DeleteTags',
+        'autoscaling:CreateOrUpdateTags',
+        'autoscaling:DescribeTags',
+        'autoscaling:DescribeLifecycleHooks',
+        'autoscaling:PutLifecycleHook',
+      ],
+      effect: Effect.ALLOW,
+      resources: [cdk.Fn.sub("arn:aws:autoscaling:*:${AWS::AccountId}:autoScalingGroup:*")]
+    })
+
+    const schedulerPolicyStatement9 = new PolicyStatement({
+      actions: [
+        'logs:DescribeLogStreams',
+        'rds:DescribeDBClusters',
+        'rds:DescribeDBInstances',
+        'ec2:DescribeInstances',
+        'ec2:DescribeRegions',
+        'ec2:ModifyInstanceAttribute',
+        'autoscaling:UpdateAutoScalingGroup',
+        'autoscaling:DescribeAutoScalingInstances',
+        'autoscaling:DescribeAutoScalingGroups',
+        'autoscaling:DeleteTags',
+        'autoscaling:CreateOrUpdateTags',
+        'autoscaling:DescribeTags',
+        'autoscaling:DescribeLifecycleHooks',
+        'autoscaling:PutLifecycleHook',
+        'cloudwatch:PutMetricData',
+        'ssm:GetParameter',
+        'ssm:GetParameters',
+        'ssm:DescribeMaintenanceWindows',
+        'tag:GetResources',
+        'sts:AssumeRole',
+      ],
+      effect: Effect.ALLOW,
+      resources: [cdk.Fn.sub("*")]
+    })
+
+    const schedulerPolicyStatement10 = new PolicyStatement({
+      actions: [
+        's3:GetObject',
+      ],
+      effect: Effect.ALLOW,
+      resources: [cdk.Fn.sub("arn:aws:s3:::${BucketName}/*")]
+    })
+
     
     const schedulerPolicy = new iam.Policy(this, "SchedulerPolicy", {
       roles: [schedulerRole],
       policyName: 'SchedulerPolicy',
-      statements: [schedulerPolicyStatement2, schedulerPolicyStatement3, schedulerPolicyStatement4, schedulerPolicyStatement5, schedulerPolicyStatement6]
+      statements: [schedulerPolicyStatement2, schedulerPolicyStatement3, schedulerPolicyStatement4, schedulerPolicyStatement5, schedulerPolicyStatement6, schedulerPolicyStatement8,schedulerPolicyStatement9,schedulerPolicyStatement10]
     })
 
     const schedulerRDSPolicy  = new iam.Policy(this, "SchedulerRDSPolicy", {

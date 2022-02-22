@@ -85,6 +85,7 @@ class InstanceScheduler:
         self._lambda_account = os.getenv(configuration.ENV_ACCOUNT)
         self._logger = None
         self._context = None
+        self._asg_conf = {}
 
         partition = "aws"
         try:
@@ -511,40 +512,77 @@ class InstanceScheduler:
 
     # start and stop listed instances
     def _start_and_stop_instances(self, account, region):
-
         if len(self._scheduler_start_list) > 0:
             self._logger.info(INF_STARTING_INSTANCES, ", ".join([i.instance_str for i in self._scheduler_start_list]),
                               region)
-
-            for inst_id, state in self._service.start_instances({
-                schedulers.PARAM_SESSION: account.session,
-                schedulers.PARAM_ACCOUNT: account.name,
-                schedulers.PARAM_ROLE: account.role,
-                schedulers.PARAM_REGION: region,
-                schedulers.PARAM_TRACE: self._configuration.trace,
-                schedulers.PARAM_STARTED_INSTANCES: self._scheduler_start_list,
-                schedulers.PARAM_LOGGER: self._logger,
-                schedulers.PARAM_CONTEXT: self._context,
-                schedulers.PARAM_STACK: self._stack_name,
-                schedulers.PARAM_CONFIG: self._scheduler_configuration
-            }):
-                # set state based on returned state from start action
-                self._instance_states.set_instance_state(inst_id, state)
+            if self._service.service_name == "autoscaling":
+                conf = {}
+                for i in self._scheduler_start_list:
+                    conf = self._instance_states.get_asg_conf(i.id)
+                    self._asg_conf.update( {i.id : conf} )
+                for inst_id, state in self._service.start_instances({
+                    schedulers.PARAM_SESSION: account.session,
+                    schedulers.PARAM_ACCOUNT: account.name,
+                    schedulers.PARAM_ROLE: account.role,
+                    schedulers.PARAM_REGION: region,
+                    schedulers.PARAM_TRACE: self._configuration.trace,
+                    schedulers.PARAM_STARTED_INSTANCES: self._scheduler_start_list,
+                    schedulers.PARAM_LOGGER: self._logger,
+                    schedulers.PARAM_CONTEXT: self._context,
+                    schedulers.PARAM_STACK: self._stack_name,
+                    schedulers.PARAM_CONFIG: self._scheduler_configuration,
+                    schedulers.PARAM_ASG_CONF: self._asg_conf
+                }):
+                    # set state based on returned state from start action
+                    self._instance_states.set_instance_state(inst_id, state)
+            else:
+                for inst_id, state in self._service.start_instances({
+                    schedulers.PARAM_SESSION: account.session,
+                    schedulers.PARAM_ACCOUNT: account.name,
+                    schedulers.PARAM_ROLE: account.role,
+                    schedulers.PARAM_REGION: region,
+                    schedulers.PARAM_TRACE: self._configuration.trace,
+                    schedulers.PARAM_STARTED_INSTANCES: self._scheduler_start_list,
+                    schedulers.PARAM_LOGGER: self._logger,
+                    schedulers.PARAM_CONTEXT: self._context,
+                    schedulers.PARAM_STACK: self._stack_name,
+                    schedulers.PARAM_CONFIG: self._scheduler_configuration
+                }):
+                    # set state based on returned state from start action
+                    self._instance_states.set_instance_state(inst_id, state)
 
         if len(self._scheduler_stop_list) > 0:
             self._logger.info(INF_STOPPED_INSTANCES, ", ".join([i.instance_str for i in self._scheduler_stop_list]),
                               region)
-            for inst_id, state in self._service.stop_instances({
-                schedulers.PARAM_SESSION: account.session,
-                schedulers.PARAM_ACCOUNT: account.name,
-                schedulers.PARAM_ROLE: account.role,
-                schedulers.PARAM_REGION: region,
-                schedulers.PARAM_TRACE: self._configuration.trace,
-                schedulers.PARAM_STOPPED_INSTANCES: self._scheduler_stop_list,
-                schedulers.PARAM_LOGGER: self._logger,
-                schedulers.PARAM_CONTEXT: self._context,
-                schedulers.PARAM_STACK: self._stack_name,
-                schedulers.PARAM_CONFIG: self._scheduler_configuration
-            }):
-                # set state based on start of stop action
-                self._instance_states.set_instance_state(inst_id, state)
+            if self._service.service_name == "autoscaling":
+                for i in self._scheduler_stop_list:
+                    self._instance_states.set_instance_state(i.id, i.state, i.asg_desired_capacity, i.asg_min_size)
+
+                for inst_id, state in self._service.stop_instances({
+                    schedulers.PARAM_SESSION: account.session,
+                    schedulers.PARAM_ACCOUNT: account.name,
+                    schedulers.PARAM_ROLE: account.role,
+                    schedulers.PARAM_REGION: region,
+                    schedulers.PARAM_TRACE: self._configuration.trace,
+                    schedulers.PARAM_STOPPED_INSTANCES: self._scheduler_stop_list,
+                    schedulers.PARAM_LOGGER: self._logger,
+                    schedulers.PARAM_CONTEXT: self._context,
+                    schedulers.PARAM_STACK: self._stack_name,
+                    schedulers.PARAM_CONFIG: self._scheduler_configuration
+                }):
+                    self._instance_states.set_instance_state(inst_id, state)
+            else:
+                for inst_id, state in self._service.stop_instances({
+                    schedulers.PARAM_SESSION: account.session,
+                    schedulers.PARAM_ACCOUNT: account.name,
+                    schedulers.PARAM_ROLE: account.role,
+                    schedulers.PARAM_REGION: region,
+                    schedulers.PARAM_TRACE: self._configuration.trace,
+                    schedulers.PARAM_STOPPED_INSTANCES: self._scheduler_stop_list,
+                    schedulers.PARAM_LOGGER: self._logger,
+                    schedulers.PARAM_CONTEXT: self._context,
+                    schedulers.PARAM_STACK: self._stack_name,
+                    schedulers.PARAM_CONFIG: self._scheduler_configuration
+                }):
+                    # set state based on start of stop action
+                    self._instance_states.set_instance_state(inst_id, state)
